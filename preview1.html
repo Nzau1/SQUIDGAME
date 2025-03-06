@@ -115,7 +115,7 @@
         </div>
         
         <div>
-            <button id="backButton" class="nav-button">Back to Index</button>
+            <button id="backButton" class="nav-button">Back</button>
             <button id="nextButton" class="nav-button" disabled>Proceed</button>
         </div>
     </div>
@@ -145,7 +145,7 @@
         moveButton.addEventListener('mousedown', startMoving);
         moveButton.addEventListener('mouseup', stopMoving);
         moveButton.addEventListener('mouseleave', stopMoving); // In case the mouse leaves the button while still held down
-        backButton.addEventListener('click', () => window.location.href = 'home.html');
+        backButton.addEventListener('click', () => window.location.href = 'index.html');
         nextButton.addEventListener('click', () => {
             // Navigate to the next game
             window.location.href = 'glass-bridge.html';
