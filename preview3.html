@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dalgona Candy Challenge</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+        .header {
+            background-color: #ff0066;
+            padding: 20px;
+            text-align: center;
+        }
+        .game-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .canvas-container {
+            position: relative;
+            width: 350px;
+            height: 350px;
+            margin: 0 auto;
+            background-color: #f9e4b7;
+            border-radius: 50%;
+            overflow: hidden;
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        .timer-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #ddd;
+            margin: 10px 0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .timer-progress {
+            height: 100%;
+            width: 100%;
+            background-color: #3498db;
+            transition: width 0.1s linear;
+        }
+        .health-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #ddd;
+            margin: 10px 0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .health-progress {
+            height: 100%;
+            width: 100%;
+            background-color: #2ecc71;
+            transition: width 0.1s linear;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .nav-button {
+            background-color: #2c3e50;
+            color: white;
+        }
+        .level {
+            font-size: 18px;
+            margin: 10px 0;
+        }
+        .instructions {
+            margin-bottom: 20px;
+        }
+        .shape-name {
+            font-weight: bold;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>Dalgona Candy Challenge</h1>
+        <div class="instructions">
+            <p>Click and hold to carefully cut along the outline without breaking the candy!</p>
+        </div>
+        
+        <div class="level">Level: <span id="level">1</span></div>
+        <div class="shape-name">Shape: <span id="shapeName">Triangle</span></div>
+        
+        <div class="health-bar">
+            <div id="healthBar" class="health-progress"></div>
+        </div>
+        
+        <div class="timer-bar">
+            <div id="timerBar" class="timer-progress"></div>
+        </div>
+        
+        <div class="canvas-container">
+            <canvas id="gameCanvas" width="350" height="350"></canvas>
+        </div>
+        
+        <div id="message"></div>
+        
+        <div>
+            <button id="startButton" class="nav-button">Start Game</button>
+            <button id="resetButton" class="nav-button">Reset</button>
+        </div>
+        
+        <div>
+            <button id="backButton" class="nav-button">Back</button>
+            <button id="nextButton" class="nav-button" disabled>Proceed</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startButton = document.getElementById('startButton');
+        const resetButton = document.getElementById('resetButton');
+        const backButton = document.getElementById('backButton');
+        const nextButton = document.getElementById('nextButton');
+        const levelSpan = document.getElementById('level');
+        const shapeNameSpan = document.getElementById('shapeName');
+        const messageDiv = document.getElementById('message');
+        const healthBar = document.getElementById('healthBar');
+        const timerBar = document.getElementById('timerBar');
+        
+        let level = 1;
+        let gameStarted = false;
+        let isDrawing = false;
+        let health = 100;
+        let timerWidth = 100;
+        let timerInterval;
+        let currentShape = null;
+        let currentPath = [];
+        let lastPoint = null;
+        let completionPercentage = 0;
+        
+        const shapes = [
+            { name: 'Triangle', points: [], difficulty: 1 },
+            { name: 'Square', points: [], difficulty: 1 },
+            { name: 'Circle', points: [], difficulty: 2 },
+            { name: 'Star', points: [], difficulty: 3 },
+            { name: 'Umbrella', points: [], difficulty: 4 }
+        ];
+        
+        backButton.addEventListener('click', () => window.location.href = 'home.html');
+        nextButton.addEventListener('click', () => {
+            // You can redirect to another game or back to index
+            window.location.href = 'index.html';
+        });
+        startButton.addEventListener('click', startGame);
+        resetButton.addEventListener('click', resetGame);
+        
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseleave', stopDrawing);
+        
+        // Touch events for mobile
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent('mousedown', {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            canvas.dispatchEvent(mouseEvent);
+        });
+        
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent('mousemove', {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            canvas.dispatchEvent(mouseEvent);
+        });
+        
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            const mouseEvent = new MouseEvent('mouseup');
+            canvas.dispatchEvent(mouseEvent);
+        });
+        
+        function generateShape(shapeName) {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = 120;
+            
+            let points = [];
+            
+            switch(shapeName) {
+                case 'Triangle':
+                    points = [
+                        { x: centerX, y: centerY - radius },
+                        { x: centerX - radius * Math.cos(Math.PI/6), y: centerY + radius * Math.sin(Math.PI/6) },
+                        { x: centerX + radius * Math.cos(Math.PI/6), y: centerY + radius * Math.sin(Math.PI/6) },
+                        { x: centerX, y: centerY - radius }
+                    ];
+                    break;
+                    
+                case 'Square':
+                    const offset = radius * 0.7;
+                    points = [
+                        { x: centerX - offset, y: centerY - offset },
+                        { x: centerX + offset, y: centerY - offset },
+                        { x: centerX + offset, y: centerY + offset },
+                        { x: centerX - offset, y: centerY + offset },
+                        { x: centerX - offset, y: centerY - offset }
+                    ];
+                    break;
+                    
+                case 'Circle':
+                    for (let i = 0; i <= 360; i += 10) {
+                        const angle = i * Math.PI / 180;
+                        points.push({
+                            x: centerX + radius * Math.cos(angle),
+                            y: centerY + radius * Math.sin(angle)
+                        });
+                    }
+                    break;
+                    
+                case 'Star':
+                    const outerRadius = radius;
+                    const innerRadius = radius * 0.4;
+                    for (let i = 0; i < 10; i++) {
+                        const angle = i * Math.PI / 5;
+                        const r = i % 2 === 0 ? outerRadius : innerRadius;
+                        points.push({
+                            x: centerX + r * Math.sin(angle),
+                            y: centerY - r * Math.cos(angle)
+                        });
+                    }
+                    // Close the path
+                    points.push({ 
+                        x: points[0].x, 
+                        y: points[0].y 
+                    });
+                    break;
+                    
+                case 'Umbrella':
+                    // Umbrella handle
+                    points.push({ x: centerX, y: centerY + radius });
+                    points.push({ x: centerX, y: centerY });
+                    
+                    // Umbrella dome
+                    for (let i = 180; i <= 360; i += 10) {
+                        const angle = i * Math.PI / 180;
+                        points.push({
+                            x: centerX + radius * Math.cos(angle),
+                            y: centerY + radius * Math.sin(angle)
+                        });
+                    }
+                    
+                    // Add some decoration
+                    points.push({ x: centerX - radius * 0.7, y: centerY + 10 });
+                    points.push({ x: centerX - radius * 0.4, y: centerY - 20 });
+                    points.push({ x: centerX, y: centerY + 10 });
+                    points.push({ x: centerX + radius * 0.4, y: centerY - 20 });
+                    points.push({ x: centerX + radius * 0.7, y: centerY + 10 });
+                    
+                    break;
+            }
+            
+            return points;
+        }
+        
+        function drawShape(points) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw the candy background
+            ctx.fillStyle = '#f9e4b7';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw the shape outline
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            
+            for (let i = 1; i < points.length; i++) {
+                ctx.lineTo(points[i].x, points[i].y);
+            }
+            
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Draw user's path
+            if (currentPath.length > 1) {
+                ctx.beginPath();
+                ctx.moveTo(currentPath[0].x, currentPath[0].y);
+                
+                for (let i = 1; i < currentPath.length; i++) {
+                    ctx.lineTo(currentPath[i].x, currentPath[i].y);
+                }
+                
+                ctx.strokeStyle = '#e74c3c';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+            }
+        }
+        
+        function startGame() {
+            if (gameStarted) return;
+            
+            gameStarted = true;
+            health = 100;
+            timerWidth = 100;
+            currentPath = [];
+            completionPercentage = 0;
+            
+            // Choose shape based on level
+            let shapeIndex = Math.min(level - 1, shapes.length - 1);
+            currentShape = shapes[shapeIndex];
+            shapeNameSpan.innerText = currentShape.name;
+            
+            // Generate shape points
+            currentShape.points = generateShape(currentShape.name);
+            
+            // Draw initial shape
+            drawShape(currentShape.points);
+            
+            // Start timer
+            clearInterval(timerInterval);
+            timerInterval = setInterval(updateTimer, 100);
+            
+            messageDiv.innerText = 'Carefully trace the outline!';
+            healthBar.style.width = '100%';
+            timerBar.style.width = '100%';
+            
+            nextButton.disabled = true;
+        }
+        
+        function resetGame() {
+            gameStarted = false;
+            clearInterval(timerInterval);
+            currentPath = [];
+            health = 100;
+            level = 1;
+            levelSpan.innerText = level;
+            
+            // Reset the shape
+            let defaultShape = shapes[0];
+            defaultShape.points = generateShape(defaultShape.name);
+            shapeNameSpan.innerText = defaultShape.name;
+            
+            // Draw the initial shape
+            drawShape(defaultShape.points);
+            
+            messageDiv.innerText = '';
+            healthBar.style.width = '100%';
+            timerBar.style.width = '100%';
+            
+            nextButton.disabled = true;
+        }
+        
+        function updateTimer() {
+            if (!gameStarted) return;
+            
+            // Reduce timer width
+            timerWidth -= 0.2;
+            timerBar.style.width = timerWidth + '%';
+            
+            // Check if time's up
+            if (timerWidth <= 0) {
+                gameOver('Time\'s up!');
+            }
+        }
+        
+        function startDrawing(e) {
+            if (!gameStarted) return;
+            
+            isDrawing = true;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            // Start a new path if needed
+            if (currentPath.length === 0) {
+                currentPath.push({ x, y });
+            }
+            
+            lastPoint = { x, y };
+        }
+        
+        function draw(e) {
+            if (!isDrawing || !gameStarted) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            // Add point to the path
+            currentPath.push({ x, y });
+            
+            // Check if we're close to the shape outline
+            let onPath = isPointNearPath(x, y, currentShape.points);
+            
+            if (!onPath) {
+                // Reduce health if not on the path
+                health -= 1 * currentShape.difficulty;
+                healthBar.style.width = health + '%';
+                
+                if (health <= 0) {
+                    gameOver('You broke the candy!');
+                    return;
+                }
+            } else {
+                // Update completion percentage
+                updateCompletionPercentage();
+            }
+            
+            // Redraw the shape
+            drawShape(currentShape.points);
+            
+            lastPoint = { x, y };
+        }
+        
+        function stopDrawing() {
+            isDrawing = false;
+        }
+        
+        function isPointNearPath(x, y, pathPoints) {
+            // Simple method to check if point is close to any segment of the path
+            for (let i = 0; i < pathPoints.length - 1; i++) {
+                const p1 = pathPoints[i];
+                const p2 = pathPoints[i + 1];
+                
+                const distance = distanceToSegment(x, y, p1.x, p1.y, p2.x, p2.y);
+                
+                if (distance < 10) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+        
+        function distanceToSegment(x, y, x1, y1, x2, y2) {
+            const A = x - x1;
+            const B = y - y1;
+            const C = x2 - x1;
+            const D = y2 - y1;
+            
+            const dot = A * C + B * D;
+            const len_sq = C * C + D * D;
+            let param = -1;
+            
+            if (len_sq !== 0) {
+                param = dot / len_sq;
+            }
+            
+            let xx, yy;
+            
+            if (param < 0) {
+                xx = x1;
+                yy = y1;
+            } else if (param > 1) {
+                xx = x2;
+                yy = y2;
+            } else {
+                xx = x1 + param * C;
+                yy = y1 + param * D;
+            }
+            
+            const dx = x - xx;
+            const dy = y - yy;
+            
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+        
+        function updateCompletionPercentage() {
+            // Calculate completion percentage based on how much of the path has been traced
+            // This is a simplified version - in a real game, you'd need a more sophisticated approach
+            
+            const totalSegments = currentShape.points.length - 1;
+            let coveredSegments = 0;
+            
+            for (let i = 0; i < totalSegments; i++) {
+                const p1 = currentShape.points[i];
+                const p2 = currentShape.points[i + 1];
+                
+                // Check if any point in the current path is close to this segment
+                for (let j = 0; j < currentPath.length; j++) {
+                    const distance = distanceToSegment(
+                        currentPath[j].x, currentPath[j].y, 
+                        p1.x, p1.y, 
+                        p2.x, p2.y
+                    );
+                    
+                    if (distance < 10) {
+                        coveredSegments++;
+                        break;
+                    }
+                }
+            }
+            
+            completionPercentage = Math.floor((coveredSegments / totalSegments) * 100);
+            
+            // Check if level is complete
+            if (completionPercentage >= 80) {
+                levelComplete();
+            }
+        }
+        
+        function gameOver(message) {
+            gameStarted = false;
+            clearInterval(timerInterval);
+            
+            messageDiv.innerText = message;
+            
+            // Reset after a delay
+            setTimeout(() => {
+                resetGame();
+            }, 3000);
+        }
+        
+        function levelComplete() {
+            gameStarted = false;
+            clearInterval(timerInterval);
+            
+            if (level === shapes.length) {
+                messageDiv.innerText = 'Congratulations! You completed all levels!';
+                nextButton.disabled = false;
+                return;
+            }
+            
+            level++;
+            levelSpan.innerText = level;
+            
+            messageDiv.innerText = 'Level ' + (level - 1) + ' complete! Get ready for level ' + level;
+            
+            // Reset for next level
+            setTimeout(() => {
+                startGame();
+            }, 2000);
+        }
+        
+        // Initialize the game
+        resetGame();
+    </script>
+</body>
+</html>
